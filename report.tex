@@ -97,6 +97,60 @@ git的若干操作通过命令行执行效率更高。在powershell中，所有c
 （获取文件对象）， Test-Path（检查路径是否存在）， Get-Date（获取当前时间）等，具体可查阅微软官方手册。powershell 一个非常重要的功能就是管
 道运算符（|），即在一组命令中，输出的命令结果成为下一个命令的输入参数。管道的概念与真实生活中的生产线比较相似：在不同的生产环节进行连续的再
 加工，我们可以发现管道运算符的写法逻辑非常清晰，易于理解。
+\par
+入门阶段主要是熟悉各种开发语言、开发工具的操作和用途，相当于是起步阶段，虽然有的工具还不是非常熟悉，但在今后的开发中可以继续积累经验，达到熟
+能生巧的地步。版本控制这一思想在本科阶段的课程中体现的不是很重要，但在实际开发的过程中却是非常重要的，今后的开发，即便是个人的敏捷开发，也尽
+量使用版本管理工具来进行控制，对于形成软件工程的思想，是大有裨益的。
 
+\subsection{FPGA编译器语义分析}
+\subsubsection{总览}
+FPGA编译器语义分析流程大致分为以下几个部分：
+\par
+1. 从源模型构建初始DFIR。
+\par
+2. 根据编译上下文确定用户未设置或动态设置的语义属性(例如，可编译源模型通常不指定所有数据类型和隧道方向)。
+\par
+3. 检测非法的源构造，例如未接线的端子，不兼容的类型，不良的循环等。
+\par
+4. 将由编译器确定的属性和/或消息反映到源模型。
+\par
+5. 产生准备用于后续编译阶段使用的DFIR。触发SA以响应各种编译器和源模型事件。例如，源模型更改会更改模型的任何语义含义，或者更改依赖项在语义上
+影响依赖者的任何依赖项。
+\subsubsection{更改可编译源模型}
+1. 加载模型：加载模型时，CompilerService会附加到模型上，然后从SA开始。这仅仅是为了确保正确设置此源模型中的所有语义属性。许多计算出的语义属性
+只是没有保存在源模型中，因此需要在每次加载时进行设置。
+\par
+2. 编辑模型：具有语义效果的任何编辑都将要求进行编译。CompilerService正在监听ITransactionManager.TransactionStateChanged事件。如果事务中有任
+何事务项导致源文件在语义上被认为是脏的，SA将启动。与MocPlugin关联的对象将根据相应的计算模型来确定哪些交易是语义更改。如果用户
+操作(例如撤消、重做)引起了语义上的变化，也将对其进行检查，并根据检查结果触发SA。
+\par
+3. 在编辑器中打开模型：在编辑器中打开文档或创建新文档时，UI线程将附加到Envoy，这将增加的用户优先级 Envoy。编译器服务会关注Envoy通孔的用户优先
+级变化，IUserPriorityEnvoyService并且在从未对源模型副本进行语义分析时会触发(高优先级)SA。
+\subsubsection{更改可编译源模型}
+1. WaitForSemanticAnalysisAsync：CompilerService公开的API，用于请求和等待SA结果，如果没有运行SA或正在为请求的SA运行BuildSpec，那么将启动一个
+新的WaitForSemanticAnalysisAsync。
+\par
+2. GetTargetDfirAsync：IAnyMocCompiler公开的API以获取目标级别的DFIR，它将触发一次SA，以确保在有效的SA之后生成目标级别的DFIR。
+\par
+3. TargetCompiler.CompileAsync：TargetCompiler运行后端编译的API将调用GetTargetDfirAsync以获取目标级别的DFIR进行编译，它也可以调度SA。
+\subsubsection{SA的执行流程}
+创建一个SemanticAnalysisActivity对象，SemanticAnalysisActivity为每个SA申请内存并在后台线程上运行。一旦开始运行，活动将查询MocPlugin来生成源
+DFIR，它将可编译的源模型转换为源DFIR。
+\par
+\subsubsection{Moc插件}
+Moc插件定义了一个语义分析所依赖的算法或数学模型，一个完整的Moc插件需要定义以下几个部分：
+\par
+1. MocReflector：MocReflector附加到它生成的源DFIR。MocReflector可以容纳特定于计算模型的反射变换。
+\par
+2. MocTransformManager：MocTransformManager提供了DFIR转换的时间表，构成了语义分析完成的其余工作。这些变换可以包括SemanticAnalysisTransform
+针对计算模型的通用变换以及其他特定于模型的变换。
+\par
+3. SemanticAnalysisTransform：此转换执行标准的数据流语义分析，即在DFIR 图上的完整类型传播。
+\par
+4. InternalTypePropagationVisitor：可以将其配置为访问DFIR上的所有或部分节点子集。转换期间将调用任何插件节点以进行其类型传播。
+\par
+5. ReflectionTransform：此转换负责将任何编译结果反映到源模型。如果每个Moc插件在其DFIR图中具有任何非标准的语义信息或插件DFIR点，则都需要考虑
+使用自己的类型/语义信息反射转换。该模块由Pipeline自动生成，不应手动修改其代码。
+\par
 %\bibliography{report}
 \end{document}
