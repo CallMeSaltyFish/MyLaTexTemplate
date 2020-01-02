@@ -62,7 +62,7 @@
 实相脱节。此外透过理论联系实际，巩固所学的知识，提高处理实际问题的潜力，了解设计专题的主要资料，为毕业设计的顺利进行做好充分的准备，并为自
 己能顺利与社会环境接轨做准备。
 
-\section{实习岗位和工作状况介绍}
+\section{企业背景及企业文化}
 \subsection{实习单位简介}
 本人实习单位为美国国家仪器公司中国上海分公司。国家仪器股份有限公司（National Instruments，简称NI或恩艾仪器）是一家美国公司，从事与测试、控
 制、设计领域相关的，包括虚拟仪器和电子测试设备等工程软件的开发。著名产品有图形开发环境LabVIEW、C语言虚拟仪器应用系统LabWindows/CVI、集成电
@@ -79,7 +79,7 @@
 线充电。NI矢量信号收发器（VST）设计用于对各种无线设备进行快速而准确的测试，包括WLAN接入点，蜂窝手机和信息娱乐系统。R\&D部门日常使用的开发语
 言有c、python、yml、LabVIEW、powershell等，使用git进行版本控制，perforce进行云端数据的存储。
 
-\section{实习经历及项目}
+\section{实习环节中遇到的问题及困难}
 \subsection{入门阶段}
 按照公司文档，将工作的电脑配置 python 2.7，python 3.6，LabVIEW，C\#，和GIT的运行环境，并且按照文档的介绍熟悉了GIT的 add，push，pull，
 commit，remove等操作。特别地，由于今后的开发中会同时用到 python 的 2.x 和 3.x 版本，且python 2和python 3互不兼容，按照参考文档，使用 
@@ -126,7 +126,7 @@ FPGA编译器语义分析流程大致分为以下几个部分：
 \par
 3. 在编辑器中打开模型：在编辑器中打开文档或创建新文档时，UI线程将附加到Envoy，这将增加的用户优先级 Envoy。编译器服务会关注Envoy通孔的用户优先
 级变化，IUserPriorityEnvoyService并且在从未对源模型副本进行语义分析时会触发(高优先级)SA。
-\subsubsection{更改可编译源模型}
+\subsubsection{更改不可编译源模型}
 1. WaitForSemanticAnalysisAsync：CompilerService公开的API，用于请求和等待SA结果，如果没有运行SA或正在为请求的SA运行BuildSpec，那么将启动一个
 新的WaitForSemanticAnalysisAsync。
 \par
@@ -152,5 +152,34 @@ Moc插件定义了一个语义分析所依赖的算法或数学模型，一个�
 5. ReflectionTransform：此转换负责将任何编译结果反映到源模型。如果每个Moc插件在其DFIR图中具有任何非标准的语义信息或插件DFIR点，则都需要考虑
 使用自己的类型/语义信息反射转换。该模块由Pipeline自动生成，不应手动修改其代码。
 \par
+
+\subsection{自动化测试系统}
+NI的自动化测试系统（Automated Testing System，简称ATS）是为了对FPGA、驱动器等产品进行自动化测试的平台，ATS建立在Azure Pipeline的架构上。对
+测试平台的主要工作为修改 ATS 系统以跳过 FPGA 的编译。
+\subsubsection{ATS原有设计方案}
+(对于每一个测试用例)加载 YAML 配置文件，YAML(YML)是一种类似于 XML或 JSON 的结构化语言，也是靠映射形成的一个多级目录，一个主键可以引导一个值
+或一个字典，可视为一个分级的散列。此时所有测试用例进入初始化(initialized)状态。
+\par
+进行预处理(manipulate)操作，状态置为预处理(manipulated)状态。
+\par
+进行编译(compile)操作。当测试用例还在编译的时候，状态为正在编译 (compiling)，一旦结束状态就变为已编译(compiled)。
+\par
+部署(deploy)并运行(run)测试用例，状态置为部署并运行(deploy \& run)。
+\par
+输出测试结果，结束。
+\subsubsection{ATS改进方案}
+通过白盒检查代码易于发现，在编译的过程中，每有一个测试用例，就专门申请一个线程，负责该测试用例的编译工作。一旦编译完成，该线程就将状态更新
+为“已编译”。与此同时，主线程不停地轮询所有测试用例的状态，当所有测试用例的状态均为已编译时，即可进行接下来的步骤。
+\par
+基于以上信息，对 ATS 作出的改进为:对于每一个测试用例，在“申请线程”操作之前，先检查一个布尔值，这里命名为 skip\_compile。如果布尔值为真，直接
+将该测试用例的状态改为“已编译”，之后直接轮到下一个测试用例;否则，按原有的代码逻辑进行操作。这样一来，对于一个不需要编译的测试用例来说，不会
+执行申请线程、开始编译等所有的编译相关操作，直接被视为已编译。将该测试用例的状态改为“已编译”这一操作十分重要，不仅可以被主线程视为已经编译，
+同时在下一个阶段执行之前，所有的测试用例的状态会被检查一遍，如果状态是“已编译”之前的状态，代码会抛出异常，这样做可使代码正常运行。
+\par
+最后一个待解决的问题就是布尔值 skip\_compile 如何得到。前面已经指出，ATS 的第一步就是读取配置文件，这就要求测试人员在每次测试之前显式地添加
+表达式“skip\_compile:True”，才能使ATS系统正常运行。
+
+\subsection{Azure Pipeline}
+
 %\bibliography{report}
 \end{document}
